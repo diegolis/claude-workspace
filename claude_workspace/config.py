@@ -17,6 +17,8 @@ DEFAULT_CONFIG = {
     "panes": [
         {"name": "project-1", "directory": "~"},
         {"name": "project-2", "directory": "~"},
+        {"name": "project-3", "directory": "~"},
+        {"name": "project-4", "directory": "~"},
     ],
 }
 
