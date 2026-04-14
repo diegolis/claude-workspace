@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claude-workspace"
+version = "0.1.0"
+description = "Multi-pane terminal grid for Claude Code with session persistence"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Diego Lis" }]
+keywords = ["claude", "terminal", "workspace", "multiplexer"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: GTK",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+claude-workspace = "claude_workspace.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/diegolis/claude-workspace"
+Issues = "https://github.com/diegolis/claude-workspace/issues"
