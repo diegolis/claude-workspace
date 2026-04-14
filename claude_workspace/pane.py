@@ -1,5 +1,6 @@
 import os
-from .process import find_claude_pid, read_cwd
+
+from .process import find_child_cmd, find_claude_pid, read_cwd
 from .session import find_session_id, session_exists
 from .style import LABEL_CLASSES
 
@@ -16,6 +17,7 @@ class Pane:
         self.default_dir = os.path.expanduser(default_dir)
         self.cwd = saved.get("dir", self.default_dir)
         self.session_id = saved.get("session_id")
+        self.last_command = saved.get("last_command")
         self.shell_pid = None
         self.terminal = None
         self.label = None
@@ -29,11 +31,10 @@ class Pane:
         suffix = f"  —  {self.term_title}" if self.term_title else ""
         return f"  {path}    [{session}]{suffix}"
 
-    def claude_command(self, flags=""):
-        parts = ["claude"] + (flags.split() if flags else [])
-        if self.session_id and session_exists(self.session_id, self.cwd):
-            parts += ["--resume", self.session_id]
-        return " ".join(parts)
+    def startup_command(self, claude_flags=""):
+        if self.last_command and not self._is_claude_cmd(self.last_command):
+            return self.last_command
+        return self._claude_command(claude_flags)
 
     def refresh(self):
         if not self.shell_pid:
@@ -42,8 +43,7 @@ class Pane:
         self.claude_running = claude_pid is not None
         active_pid = claude_pid or self.shell_pid
         self.cwd = read_cwd(active_pid) or self.cwd
-        if claude_pid:
-            self.session_id = find_session_id(claude_pid) or self.session_id
+        self._refresh_command(claude_pid)
 
     def update_label(self):
         self.label.set_text(self.title_text())
@@ -51,10 +51,33 @@ class Pane:
         self._set_label_class(cls)
 
     def to_dict(self):
-        return {"dir": self.cwd, "session_id": self.session_id}
+        return {
+            "dir": self.cwd,
+            "session_id": self.session_id,
+            "last_command": self.last_command,
+        }
+
+    def _claude_command(self, flags=""):
+        parts = ["claude"] + (flags.split() if flags else [])
+        if self.session_id and session_exists(self.session_id, self.cwd):
+            parts += ["--resume", self.session_id]
+        return " ".join(parts)
+
+    def _refresh_command(self, claude_pid):
+        if claude_pid:
+            self.session_id = find_session_id(claude_pid) or self.session_id
+            self.last_command = None
+            return
+        child_cmd = find_child_cmd(self.shell_pid)
+        if child_cmd:
+            self.last_command = child_cmd
 
     def _set_label_class(self, css_class):
         ctx = self.label.get_style_context()
         for c in LABEL_CLASSES:
             ctx.remove_class(c)
         ctx.add_class(css_class)
+
+    @staticmethod
+    def _is_claude_cmd(cmd):
+        return "claude" in cmd

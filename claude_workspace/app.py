@@ -111,10 +111,10 @@ class ClaudeWorkspace(Gtk.Window):
         if error:
             return
         pane.shell_pid = pid
-        GLib.timeout_add(800, self._launch_claude, pane)
+        GLib.timeout_add(800, self._launch_startup_cmd, pane)
 
-    def _launch_claude(self, pane):
-        cmd = pane.claude_command(self.config["claude_flags"])
+    def _launch_startup_cmd(self, pane):
+        cmd = pane.startup_command(self.config["claude_flags"])
         pane.terminal.feed_child((cmd + "\n").encode())
         return False
 

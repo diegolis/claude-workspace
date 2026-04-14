@@ -8,6 +8,21 @@ def read_cwd(pid):
         return None
 
 
+def read_cmdline(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline") as f:
+            return f.read().replace("\0", " ").strip()
+    except OSError:
+        return None
+
+
+def find_child_cmd(shell_pid):
+    children = _child_pids(shell_pid)
+    if not children:
+        return None
+    return read_cmdline(children[0])
+
+
 def find_claude_pid(shell_pid):
     for child in _child_pids(shell_pid):
         if _is_claude(child):
