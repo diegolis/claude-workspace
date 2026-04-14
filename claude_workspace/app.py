@@ -102,7 +102,7 @@ class ClaudeWorkspace(Gtk.Window):
     def _spawn(self, pane):
         cwd = pane.cwd if os.path.isdir(pane.cwd) else pane.default_dir
         pane.terminal.spawn_async(
-            Vte.PtyFlags.DEFAULT, cwd, ["/bin/bash", "-l"],
+            Vte.PtyFlags.DEFAULT, cwd, ["/bin/bash"],
             None, GLib.SpawnFlags.DEFAULT, None, None,
             -1, None, self._on_spawned, pane,
         )
