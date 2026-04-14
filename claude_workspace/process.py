@@ -16,6 +16,20 @@ def read_cmdline(pid):
         return None
 
 
+def read_virtual_env(pid):
+    env = _read_environ(pid)
+    return env.get("VIRTUAL_ENV")
+
+
+def _read_environ(pid):
+    try:
+        with open(f"/proc/{pid}/environ") as f:
+            parts = f.read().split("\0")
+        return dict(p.split("=", 1) for p in parts if "=" in p)
+    except OSError:
+        return {}
+
+
 def find_child_cmd(shell_pid):
     children = _child_pids(shell_pid)
     if not children:

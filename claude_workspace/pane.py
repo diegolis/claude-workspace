@@ -1,6 +1,6 @@
 import os
 
-from .process import find_child_cmd, find_claude_pid, read_cwd
+from .process import find_child_cmd, find_claude_pid, read_cwd, read_virtual_env
 from .session import find_session_id, session_exists
 from .style import LABEL_CLASSES
 
@@ -18,6 +18,7 @@ class Pane:
         self.cwd = saved.get("dir", self.default_dir)
         self.session_id = saved.get("session_id")
         self.last_command = saved.get("last_command")
+        self.virtual_env = saved.get("virtual_env")
         self.shell_pid = None
         self.terminal = None
         self.label = None
@@ -31,10 +32,14 @@ class Pane:
         suffix = f"  —  {self.term_title}" if self.term_title else ""
         return f"  {path}    [{session}]{suffix}"
 
-    def startup_command(self, claude_flags=""):
-        if self.last_command and not self._is_claude_cmd(self.last_command):
-            return self.last_command
-        return self._claude_command(claude_flags)
+    def startup_commands(self, claude_flags=""):
+        cmds = []
+        if self.virtual_env:
+            cmds.append(f"source {self.virtual_env}/bin/activate")
+        cmd = self._resolve_command(claude_flags)
+        if cmd:
+            cmds.append(cmd)
+        return cmds
 
     def refresh(self):
         if not self.shell_pid:
@@ -43,6 +48,7 @@ class Pane:
         self.claude_running = claude_pid is not None
         active_pid = claude_pid or self.shell_pid
         self.cwd = read_cwd(active_pid) or self.cwd
+        self.virtual_env = read_virtual_env(self.shell_pid) or self.virtual_env
         self._refresh_command(claude_pid)
 
     def update_label(self):
@@ -55,7 +61,15 @@ class Pane:
             "dir": self.cwd,
             "session_id": self.session_id,
             "last_command": self.last_command,
+            "virtual_env": self.virtual_env,
         }
+
+    def _resolve_command(self, flags=""):
+        if self.last_command is None:
+            return None
+        if not self._is_claude_cmd(self.last_command):
+            return self.last_command
+        return self._claude_command(flags)
 
     def _claude_command(self, flags=""):
         parts = ["claude"] + (flags.split() if flags else [])

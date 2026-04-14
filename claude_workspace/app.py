@@ -114,8 +114,8 @@ class ClaudeWorkspace(Gtk.Window):
         GLib.timeout_add(800, self._launch_startup_cmd, pane)
 
     def _launch_startup_cmd(self, pane):
-        cmd = pane.startup_command(self.config["claude_flags"])
-        pane.terminal.feed_child((cmd + "\n").encode())
+        for cmd in pane.startup_commands(self.config["claude_flags"]):
+            pane.terminal.feed_child((cmd + "\n").encode())
         return False
 
     def _refresh_titles(self):
