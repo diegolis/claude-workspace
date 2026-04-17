@@ -9,7 +9,7 @@ A multi-pane terminal grid for [Claude Code](https://claude.ai/claude-code) with
 - **Auto-resume** — restarts each pane in the right directory, re-activates its virtualenv, and relaunches whatever was running (Claude with `--resume`, or any other program like `htop`, `vim`, etc.)
 - **Live titles** — each pane shows its current path, session ID, and Claude's activity
 - **Rearrangeable** — click a title to select it, click another to swap them
-- **Bell notifications** — when Claude finishes (or any program rings the terminal bell) in a pane you're not looking at, the label blinks orange, the window asks for attention, a desktop notification pops up, and a short sound plays
+- **Bell notifications** — when Claude finishes (or any program rings the terminal bell) in a pane you're not looking at, the label blinks orange, the window asks for attention, a desktop notification pops up, and a short sound plays. Click the notification to raise the window and focus that pane's terminal
 - **Clickable URLs** — Ctrl+Click a URL in any pane to open it in your default browser
 - **System colors** — auto-detects your GNOME terminal font and color palette
 
@@ -20,11 +20,11 @@ A multi-pane terminal grid for [Claude Code](https://claude.ai/claude-code) with
 On Debian/Ubuntu:
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-vte-2.91 libnotify-bin xdg-utils gnome-session-canberra sound-theme-freedesktop
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-vte-2.91 gir1.2-notify-0.7 xdg-utils gnome-session-canberra sound-theme-freedesktop
 ```
 
 - `python3-gi`, `gir1.2-gtk-3.0`, `gir1.2-vte-2.91` — GTK 3 + VTE bindings (required)
-- `libnotify-bin` — provides `notify-send` for desktop bell notifications (optional; without it the label still blinks but no popup appears)
+- `gir1.2-notify-0.7` — libnotify GIR bindings used for desktop bell notifications with a clickable "focus pane" action (optional; without it the label still blinks but no popup appears). `libnotify-bin` is not required
 - `xdg-utils` — provides `xdg-open` for Ctrl+Click URL opening (optional; usually preinstalled)
 - `gnome-session-canberra`, `sound-theme-freedesktop` — provide `canberra-gtk-play` and the `message-new-instant` sound used for the bell (optional; without them, notifications are silent)
 
@@ -143,7 +143,7 @@ Each pane spawns a bash shell and runs `claude --resume <session_id>` (or plain 
 
 On restart, each pane restores its last directory, re-activates its virtualenv if one was active, and relaunches the program that was running (Claude resumes the conversation; other programs like `htop` or `vim` are re-executed as-is).
 
-Bell notifications use the VTE `bell` signal (triggered by BEL `\a`). When it fires in a pane that isn't focused, the window sets its urgency hint, the pane label starts blinking, `notify-send` pops a desktop notification, and `canberra-gtk-play` plays the `message-new-instant` sound from the freedesktop theme. Focusing the terminal or clicking the label clears the state.
+Bell notifications use the VTE `bell` signal (triggered by BEL `\a`). When it fires in a pane that isn't focused, the window sets its urgency hint, the pane label starts blinking, libnotify pops a desktop notification (via the Python `Notify` GI binding, with a "default" action wired up), and `canberra-gtk-play` plays the `message-new-instant` sound from the freedesktop theme. Clicking the notification raises the window and grabs focus for that pane's terminal. Focusing the terminal or clicking the label also clears the state.
 
 ## License
 

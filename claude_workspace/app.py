@@ -2,7 +2,9 @@ import os
 import shutil
 import subprocess
 
-from gi.repository import Gtk, Vte, GLib
+import gi
+gi.require_version("Notify", "0.7")
+from gi.repository import Gtk, Vte, GLib, Notify
 
 from .config import load_state, save_state
 from .pane import Pane, shorten_path
@@ -23,8 +25,9 @@ class ClaudeWorkspace(Gtk.Window):
         self.grid = Gtk.Grid(row_homogeneous=True, column_homogeneous=True)
         self._blink_source = None
         self._blink_state = False
-        self._notify_cmd = shutil.which("notify-send")
         self._sound_cmd = shutil.which("canberra-gtk-play")
+        self._notify_enabled = Notify.init("Claude Workspace")
+        self._active_notifications = {}
         self.set_default_size(1920, 1080)
         self.maximize()
         self.add(self.grid)
@@ -201,17 +204,28 @@ class ClaudeWorkspace(Gtk.Window):
         return True
 
     def _send_notification(self, pane):
-        if not self._notify_cmd:
+        if not self._notify_enabled:
             return
+        n = Notify.Notification.new(
+            f"Claude terminó en {pane.name}",
+            shorten_path(pane.cwd),
+        )
+        n.add_action("default", "Abrir", self._on_notification_action, pane)
+        n.connect("closed", self._on_notification_closed, pane)
+        self._active_notifications[pane.name] = n
         try:
-            subprocess.Popen(
-                [self._notify_cmd, "-a", "Claude Workspace",
-                 f"Claude terminó en {pane.name}",
-                 shorten_path(pane.cwd)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-        except OSError:
-            pass
+            n.show()
+        except GLib.Error:
+            self._active_notifications.pop(pane.name, None)
+
+    def _on_notification_action(self, notification, action, pane):
+        self.present_with_time(Gtk.get_current_event_time())
+        if pane.terminal:
+            pane.terminal.grab_focus()
+        self._clear_notify(pane)
+
+    def _on_notification_closed(self, notification, pane):
+        self._active_notifications.pop(pane.name, None)
 
     def _play_sound(self):
         if not self._sound_cmd:
