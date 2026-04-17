@@ -94,11 +94,10 @@ By default, Claude asks for permission before running commands. To bypass this, 
 
 claude-workspace reacts to the VTE `bell` signal (any `\a` / BEL `0x07` written to the terminal). Claude Code's built-in `"preferredNotifChannel": "terminal_bell"` setting only fires on a narrow set of events (permission prompts, long-running idle timeouts) and in practice rarely emits a BEL during a normal interactive session.
 
-A `Stop` hook (fires on every turn end) ends up being noisy: you get a notification for every individual response, even while you're actively chatting with Claude. A better option is the `Notification` hook, which only fires when Claude actually needs your attention — specifically on `idle_notification` (Claude finished and you haven't replied within `messageIdleNotifThresholdMs`) and `permission_request` (Claude is waiting for tool-use approval). Add to `~/.claude/settings.json`:
+A `Stop` hook (fires on every turn end) ends up being noisy: you get a notification for every individual response, even while you're actively chatting with Claude. A better option is the `Notification` hook, which only fires when Claude actually needs your attention — specifically on `idle_notification` (Claude finished a turn and you haven't replied for ~60s) and `permission_request` (Claude is waiting for tool-use approval). Add to `~/.claude/settings.json`:
 
 ```json
 {
-  "messageIdleNotifThresholdMs": 10000,
   "hooks": {
     "Notification": [
       {
@@ -111,7 +110,7 @@ A `Stop` hook (fires on every turn end) ends up being noisy: you get a notificat
 }
 ```
 
-`messageIdleNotifThresholdMs` defaults to `60000` (1 minute); lower it (e.g., `10000` for 10 seconds) to get pinged sooner when you've walked away. claude-workspace's `_on_bell` handler suppresses the notification when the pane is focused and the window is active — so you only get notified for panes you're not looking at. Restart your Claude sessions (or the whole app) for the hook to take effect.
+The idle threshold is hardcoded to 60 seconds inside Claude Code (the `messageIdleNotifThresholdMs` key in the default config is not user-settable at the time of writing). claude-workspace's `_on_bell` handler suppresses the notification when the pane is focused and the window is active — so you only get notified for panes you're not looking at. Restart your Claude sessions (or the whole app) for the hook to take effect.
 
 ### Configuration reference
 
