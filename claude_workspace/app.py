@@ -9,6 +9,7 @@ from .pane import Pane, shorten_path
 from .terminal import create_terminal
 
 BLINK_INTERVAL_MS = 500
+NOTIFY_SOUND_ID = "message-new-instant"
 
 
 class ClaudeWorkspace(Gtk.Window):
@@ -23,6 +24,7 @@ class ClaudeWorkspace(Gtk.Window):
         self._blink_source = None
         self._blink_state = False
         self._notify_cmd = shutil.which("notify-send")
+        self._sound_cmd = shutil.which("canberra-gtk-play")
         self.set_default_size(1920, 1080)
         self.maximize()
         self.add(self.grid)
@@ -169,6 +171,7 @@ class ClaudeWorkspace(Gtk.Window):
             pane.update_label()
         self.set_urgency_hint(True)
         self._send_notification(pane)
+        self._play_sound()
         if self._blink_source is None:
             self._blink_state = True
             self._blink_source = GLib.timeout_add(BLINK_INTERVAL_MS, self._tick_blink)
@@ -205,6 +208,17 @@ class ClaudeWorkspace(Gtk.Window):
                 [self._notify_cmd, "-a", "Claude Workspace",
                  f"Claude terminó en {pane.name}",
                  shorten_path(pane.cwd)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            pass
+
+    def _play_sound(self):
+        if not self._sound_cmd:
+            return
+        try:
+            subprocess.Popen(
+                [self._sound_cmd, "-i", NOTIFY_SOUND_ID],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
         except OSError:
