@@ -1,10 +1,14 @@
 import os
+import shutil
+import subprocess
 
 from gi.repository import Gtk, Vte, GLib
 
 from .config import load_state, save_state
-from .pane import Pane
+from .pane import Pane, shorten_path
 from .terminal import create_terminal
+
+BLINK_INTERVAL_MS = 500
 
 
 class ClaudeWorkspace(Gtk.Window):
@@ -16,6 +20,9 @@ class ClaudeWorkspace(Gtk.Window):
         self.cols = config["columns"]
         self.panes = self._create_panes()
         self.grid = Gtk.Grid(row_homogeneous=True, column_homogeneous=True)
+        self._blink_source = None
+        self._blink_state = False
+        self._notify_cmd = shutil.which("notify-send")
         self.set_default_size(1920, 1080)
         self.maximize()
         self.add(self.grid)
@@ -24,6 +31,7 @@ class ClaudeWorkspace(Gtk.Window):
         GLib.timeout_add_seconds(3, self._refresh_titles)
         GLib.timeout_add_seconds(config["save_interval"], self._save)
         self.connect("destroy", self._quit)
+        self.connect("focus-in-event", self._on_window_focus_in)
 
     def _create_panes(self):
         state = load_state()
@@ -44,6 +52,8 @@ class ClaudeWorkspace(Gtk.Window):
         pane.label = self._make_label(pane)
         pane.terminal = create_terminal(self.appearance)
         pane.terminal.connect("window-title-changed", self._on_title_changed, pane)
+        pane.terminal.connect("bell", self._on_bell, pane)
+        pane.terminal.connect("focus-in-event", self._on_terminal_focus_in, pane)
         event_box = self._make_label_event_box(pane)
         box.pack_start(event_box, False, False, 0)
         box.pack_start(pane.terminal, True, True, 0)
@@ -61,6 +71,7 @@ class ClaudeWorkspace(Gtk.Window):
         return event_box
 
     def _on_label_click(self, widget, event, pane):
+        self._clear_notify(pane)
         if self.selected_pane is None:
             self._select_pane(pane)
         elif self.selected_pane is pane:
@@ -135,3 +146,66 @@ class ClaudeWorkspace(Gtk.Window):
         self._refresh_titles()
         self._save()
         Gtk.main_quit()
+
+    def _on_bell(self, terminal, pane):
+        if terminal.has_focus() and self.is_active():
+            return
+        self._start_notify(pane)
+
+    def _on_terminal_focus_in(self, terminal, event, pane):
+        self._clear_notify(pane)
+        return False
+
+    def _on_window_focus_in(self, window, event):
+        self.set_urgency_hint(False)
+        return False
+
+    def _start_notify(self, pane):
+        if pane.notifying:
+            return
+        pane.notifying = True
+        pane.blink_on = True
+        if pane is not self.selected_pane:
+            pane.update_label()
+        self.set_urgency_hint(True)
+        self._send_notification(pane)
+        if self._blink_source is None:
+            self._blink_state = True
+            self._blink_source = GLib.timeout_add(BLINK_INTERVAL_MS, self._tick_blink)
+
+    def _clear_notify(self, pane):
+        if not pane.notifying:
+            return
+        pane.notifying = False
+        pane.blink_on = False
+        if pane is not self.selected_pane:
+            pane.update_label()
+        if not any(p.notifying for p in self.panes):
+            self.set_urgency_hint(False)
+
+    def _tick_blink(self):
+        self._blink_state = not self._blink_state
+        any_notifying = False
+        for pane in self.panes:
+            if pane.notifying:
+                any_notifying = True
+                pane.blink_on = self._blink_state
+                if pane is not self.selected_pane:
+                    pane.update_label()
+        if not any_notifying:
+            self._blink_source = None
+            return False
+        return True
+
+    def _send_notification(self, pane):
+        if not self._notify_cmd:
+            return
+        try:
+            subprocess.Popen(
+                [self._notify_cmd, "-a", "Claude Workspace",
+                 f"Claude terminó en {pane.name}",
+                 shorten_path(pane.cwd)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            pass

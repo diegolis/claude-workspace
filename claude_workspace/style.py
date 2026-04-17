@@ -19,9 +19,29 @@ CSS = b"""
     padding: 2px 8px;
     font-size: 10px;
 }
+.pane-label-notify-on {
+    background-color: #d08f3c;
+    color: #1a1a1a;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: bold;
+}
+.pane-label-notify-off {
+    background-color: #6b4a1e;
+    color: #f0e0b0;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: bold;
+}
 """
 
-LABEL_CLASSES = ["pane-label", "pane-label-active", "pane-label-selected"]
+LABEL_CLASSES = [
+    "pane-label",
+    "pane-label-active",
+    "pane-label-selected",
+    "pane-label-notify-on",
+    "pane-label-notify-off",
+]
 
 
 def apply_css():

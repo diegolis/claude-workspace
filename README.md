@@ -5,10 +5,12 @@ A multi-pane terminal grid for [Claude Code](https://claude.ai/claude-code) with
 ## Features
 
 - **Grid layout** — configurable N×M grid of terminal panes
-- **Session persistence** — saves working directory and Claude session ID every 60s
-- **Auto-resume** — restarts each pane in the right directory with `claude --resume`
+- **Session persistence** — saves working directory, Claude session ID, virtualenv, and last running program every 60s
+- **Auto-resume** — restarts each pane in the right directory, re-activates its virtualenv, and relaunches whatever was running (Claude with `--resume`, or any other program like `htop`, `vim`, etc.)
 - **Live titles** — each pane shows its current path, session ID, and Claude's activity
 - **Rearrangeable** — click a title to select it, click another to swap them
+- **Bell notifications** — when Claude finishes (or any program rings the terminal bell) in a pane you're not looking at, the label blinks orange, the window asks for attention, and a desktop notification pops up
+- **Clickable URLs** — Ctrl+Click a URL in any pane to open it in your default browser
 - **System colors** — auto-detects your GNOME terminal font and color palette
 
 ## Prerequisites
@@ -18,8 +20,12 @@ A multi-pane terminal grid for [Claude Code](https://claude.ai/claude-code) with
 On Debian/Ubuntu:
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-vte-2.91
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-vte-2.91 libnotify-bin xdg-utils
 ```
+
+- `python3-gi`, `gir1.2-gtk-3.0`, `gir1.2-vte-2.91` — GTK 3 + VTE bindings (required)
+- `libnotify-bin` — provides `notify-send` for desktop bell notifications (optional; without it the label still blinks but no popup appears)
+- `xdg-utils` — provides `xdg-open` for Ctrl+Click URL opening (optional; usually preinstalled)
 
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) must be installed and available in your PATH.
 
@@ -83,6 +89,28 @@ By default, Claude asks for permission before running commands. To bypass this, 
 }
 ```
 
+### Enabling bell notifications
+
+claude-workspace reacts to the VTE `bell` signal (any `\a` / BEL `0x07` written to the terminal). Claude Code's built-in `"preferredNotifChannel": "terminal_bell"` setting only fires on a narrow set of events (permission prompts, long-running idle timeouts) and in practice rarely emits a BEL during a normal interactive session.
+
+To get a notification **every time Claude finishes a turn**, add a `Stop` hook to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "printf '\\a' > /dev/tty"}
+        ]
+      }
+    ]
+  }
+}
+```
+
+This writes a BEL to the controlling terminal after every turn. claude-workspace's `_on_bell` handler suppresses the notification when the pane is focused and the window is active — so you only get notified for panes you're not looking at. Restart your Claude sessions (or the whole app) for the hook to take effect.
+
 ### Configuration reference
 
 | Key | Default | Description |
@@ -98,9 +126,10 @@ By default, Claude asks for permission before running commands. To bypass this, 
 
 ### Keyboard / Mouse
 
-- **Click title** — select pane (highlighted)
+- **Click title** — select pane (highlighted); also clears any pending bell notification on that pane
 - **Click another title** — swap the two panes
 - **Click same title** — deselect
+- **Ctrl+Click on URL** — open in default browser
 
 ### State files
 
@@ -109,9 +138,11 @@ By default, Claude asks for permission before running commands. To bypass this, 
 
 ## How it works
 
-Each pane spawns a bash shell and runs `claude --resume <session_id>` (or plain `claude` for new sessions). A background timer polls `/proc` every 3 seconds to read each pane's working directory and match it to a Claude session file. State is saved to disk every 60 seconds.
+Each pane spawns a bash shell and runs `claude --resume <session_id>` (or plain `claude` for new sessions). A background timer polls `/proc` every 3 seconds to read each pane's working directory, active virtualenv (`VIRTUAL_ENV`), and currently running child process, and to match it to a Claude session file. State is saved to disk every 60 seconds.
 
-On restart, each pane restores its last directory and resumes its Claude conversation.
+On restart, each pane restores its last directory, re-activates its virtualenv if one was active, and relaunches the program that was running (Claude resumes the conversation; other programs like `htop` or `vim` are re-executed as-is).
+
+Bell notifications use the VTE `bell` signal (triggered by BEL `\a`). When it fires in a pane that isn't focused, the window sets its urgency hint, the pane label starts blinking, and `notify-send` pops a desktop notification. Focusing the terminal or clicking the label clears the state.
 
 ## License
 

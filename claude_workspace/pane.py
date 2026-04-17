@@ -17,7 +17,8 @@ class Pane:
         self.default_dir = os.path.expanduser(default_dir)
         self.cwd = saved.get("dir", self.default_dir)
         self.session_id = saved.get("session_id")
-        self.last_command = saved.get("last_command")
+        last_cmd = saved.get("last_command")
+        self.last_command = None if (last_cmd and self._is_internal_cmd(last_cmd)) else last_cmd
         self.virtual_env = saved.get("virtual_env")
         self.shell_pid = None
         self.terminal = None
@@ -25,6 +26,8 @@ class Pane:
         self.box = None
         self.claude_running = False
         self.term_title = ""
+        self.notifying = False
+        self.blink_on = False
 
     def title_text(self):
         path = shorten_path(self.cwd)
@@ -53,8 +56,12 @@ class Pane:
 
     def update_label(self):
         self.label.set_text(self.title_text())
-        cls = "pane-label-active" if self.claude_running else "pane-label"
-        self._set_label_class(cls)
+        self._set_label_class(self._label_class())
+
+    def _label_class(self):
+        if self.notifying:
+            return "pane-label-notify-on" if self.blink_on else "pane-label-notify-off"
+        return "pane-label-active" if self.claude_running else "pane-label"
 
     def to_dict(self):
         return {
@@ -80,10 +87,13 @@ class Pane:
     def _refresh_command(self, claude_pid):
         if claude_pid:
             self.session_id = find_session_id(claude_pid) or self.session_id
-            self.last_command = None
+            self.last_command = "claude"
             return
         child_cmd = find_child_cmd(self.shell_pid)
-        if child_cmd:
+        if child_cmd is None:
+            self.last_command = None
+            return
+        if not self._is_internal_cmd(child_cmd):
             self.last_command = child_cmd
 
     def _set_label_class(self, css_class):
@@ -95,3 +105,12 @@ class Pane:
     @staticmethod
     def _is_claude_cmd(cmd):
         return "claude" in cmd
+
+    @staticmethod
+    def _is_internal_cmd(cmd):
+        """Filter out shell-internal commands that shouldn't be restored."""
+        internal_patterns = [
+            "pyenv-rehash", "pyenv-init", "pyenv-versions", "pyenv-hooks",
+            "nvm.sh", "virtualenvwrapper",
+        ]
+        return any(p in cmd for p in internal_patterns)
