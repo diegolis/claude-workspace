@@ -4,6 +4,8 @@ from .process import find_child_cmd, find_claude_pid, read_cwd, read_virtual_env
 from .session import find_session_id, session_exists
 from .style import LABEL_CLASSES
 
+GENERIC_TITLES = {"", "Claude Code", "✳ Claude Code"}
+
 
 def shorten_path(path):
     home = os.path.expanduser("~")

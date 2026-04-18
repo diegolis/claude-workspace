@@ -94,15 +94,34 @@ By default, Claude asks for permission before running commands. To bypass this, 
 
 claude-workspace reacts to the VTE `bell` signal (any `\a` / BEL `0x07` written to the terminal). Claude Code's built-in `"preferredNotifChannel": "terminal_bell"` setting only fires on a narrow set of events (permission prompts, long-running idle timeouts) and in practice rarely emits a BEL during a normal interactive session.
 
-A `Stop` hook (fires on every turn end) ends up being noisy: you get a notification for every individual response, even while you're actively chatting with Claude. A better option is the `Notification` hook, which only fires when Claude actually needs your attention — specifically on `idle_notification` (Claude finished a turn and you haven't replied for ~60s) and `permission_request` (Claude is waiting for tool-use approval). Add to `~/.claude/settings.json`:
+The challenge is deciding *when* to emit the BEL. None of Claude Code's built-in hooks map cleanly to "Claude is done and needs me":
+
+- `Stop` fires on every turn end (intermediate tool calls included) — too noisy if you have long multi-step conversations.
+- `Notification` with `idle_prompt` fires after every response too (reported upstream as [#12048](https://github.com/anthropics/claude-code/issues/12048), [#10168](https://github.com/anthropics/claude-code/issues/10168)).
+- The `idle_prompt` threshold is hardcoded to 60s (not user-settable at the time of writing).
+
+The least-noisy approximation combines two hooks:
+
+1. **`PreToolUse` with matcher `AskUserQuestion`** — fires when Claude explicitly uses the `AskUserQuestion` tool to pose a structured question.
+2. **`Stop` with a script that inspects `last_assistant_message`** — fires the BEL only when the assistant's last text ends with `?` or `¿`, catching plain-text questions that don't go through `AskUserQuestion`.
+
+Add to `~/.claude/settings.json`:
 
 ```json
 {
   "hooks": {
-    "Notification": [
+    "PreToolUse": [
       {
+        "matcher": "AskUserQuestion",
         "hooks": [
           {"type": "command", "command": "printf '\\a' > /dev/tty"}
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "/home/youruser/.claude/notify-on-question.sh"}
         ]
       }
     ]
@@ -110,7 +129,21 @@ A `Stop` hook (fires on every turn end) ends up being noisy: you get a notificat
 }
 ```
 
-The idle threshold is hardcoded to 60 seconds inside Claude Code (the `messageIdleNotifThresholdMs` key in the default config is not user-settable at the time of writing). claude-workspace's `_on_bell` handler suppresses the notification when the pane is focused and the window is active — so you only get notified for panes you're not looking at. Restart your Claude sessions (or the whole app) for the hook to take effect.
+With the companion script (`~/.claude/notify-on-question.sh`):
+
+```bash
+#!/bin/bash
+data=$(cat)
+msg=$(echo "$data" | jq -r '.last_assistant_message // empty' 2>/dev/null)
+[ -z "$msg" ] && exit 0
+trimmed=$(printf '%s' "$msg" | sed -E 's/[[:space:]*`_")\]]+$//')
+case "$trimmed" in
+  *\?) printf '\a' > /dev/tty ;;
+esac
+exit 0
+```
+
+Remember to `chmod +x ~/.claude/notify-on-question.sh`. This still misses the case where Claude finishes a task and waits silently (no question), but trades that for far less noise during long sessions. claude-workspace's `_on_bell` handler additionally suppresses the notification when the pane is focused and the window is active, so you only get notified for panes you're not looking at. Restart your Claude sessions (or the whole app) for hook changes to take effect.
 
 ### Configuration reference
 

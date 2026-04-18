@@ -7,7 +7,8 @@ gi.require_version("Notify", "0.7")
 from gi.repository import Gtk, Vte, GLib, Notify
 
 from .config import load_state, save_state
-from .pane import Pane, shorten_path
+from .pane import GENERIC_TITLES, Pane, shorten_path
+from .session import last_assistant_text
 from .terminal import create_terminal
 
 BLINK_INTERVAL_MS = 500
@@ -58,7 +59,7 @@ class ClaudeWorkspace(Gtk.Window):
         pane.terminal = create_terminal(self.appearance)
         pane.terminal.connect("window-title-changed", self._on_title_changed, pane)
         pane.terminal.connect("bell", self._on_bell, pane)
-        pane.terminal.connect("focus-in-event", self._on_terminal_focus_in, pane)
+        pane.terminal.connect("commit", self._on_terminal_commit, pane)
         event_box = self._make_label_event_box(pane)
         box.pack_start(event_box, False, False, 0)
         box.pack_start(pane.terminal, True, True, 0)
@@ -157,9 +158,8 @@ class ClaudeWorkspace(Gtk.Window):
             return
         self._start_notify(pane)
 
-    def _on_terminal_focus_in(self, terminal, event, pane):
+    def _on_terminal_commit(self, terminal, text, size, pane):
         self._clear_notify(pane)
-        return False
 
     def _on_window_focus_in(self, window, event):
         self.set_urgency_hint(False)
@@ -207,11 +207,15 @@ class ClaudeWorkspace(Gtk.Window):
         if not self._notify_enabled:
             return
         pane.refresh()
-        body = pane.term_title or pane.name
-        n = Notify.Notification.new(
-            f"Claude terminó en {shorten_path(pane.cwd)}",
-            body,
-        )
+        cwd = shorten_path(pane.cwd)
+        if pane.term_title and pane.term_title not in GENERIC_TITLES:
+            title = f"Claude terminó: {pane.term_title}"
+        else:
+            title = f"Claude terminó en {cwd}"
+        body = last_assistant_text(pane.session_id, pane.cwd) if pane.session_id else None
+        if not body:
+            body = cwd if title.startswith("Claude terminó:") else pane.name
+        n = Notify.Notification.new(title, body)
         n.add_action("default", "Abrir", self._on_notification_action, pane)
         n.connect("closed", self._on_notification_closed, pane)
         self._active_notifications[pane.name] = n
