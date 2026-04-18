@@ -206,9 +206,11 @@ class ClaudeWorkspace(Gtk.Window):
     def _send_notification(self, pane):
         if not self._notify_enabled:
             return
+        pane.refresh()
+        body = pane.term_title or pane.name
         n = Notify.Notification.new(
-            f"Claude terminó en {pane.name}",
-            shorten_path(pane.cwd),
+            f"Claude terminó en {shorten_path(pane.cwd)}",
+            body,
         )
         n.add_action("default", "Abrir", self._on_notification_action, pane)
         n.connect("closed", self._on_notification_closed, pane)
