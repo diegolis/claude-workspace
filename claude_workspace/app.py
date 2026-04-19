@@ -60,6 +60,7 @@ class ClaudeWorkspace(Gtk.Window):
         pane.terminal.connect("window-title-changed", self._on_title_changed, pane)
         pane.terminal.connect("bell", self._on_bell, pane)
         pane.terminal.connect("commit", self._on_terminal_commit, pane)
+        pane.terminal.connect("focus-in-event", self._on_terminal_focus_in, pane)
         event_box = self._make_label_event_box(pane)
         box.pack_start(event_box, False, False, 0)
         box.pack_start(pane.terminal, True, True, 0)
@@ -156,10 +157,18 @@ class ClaudeWorkspace(Gtk.Window):
     def _on_bell(self, terminal, pane):
         if terminal.has_focus() and self.is_active():
             return
+        if pane.silenced:
+            return
         self._start_notify(pane)
 
     def _on_terminal_commit(self, terminal, text, size, pane):
+        pane.silenced = False
         self._clear_notify(pane)
+
+    def _on_terminal_focus_in(self, terminal, event, pane):
+        pane.silenced = True
+        self._clear_notify(pane)
+        return False
 
     def _on_window_focus_in(self, window, event):
         self.set_urgency_hint(False)

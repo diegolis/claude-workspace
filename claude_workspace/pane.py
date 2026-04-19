@@ -30,6 +30,7 @@ class Pane:
         self.term_title = ""
         self.notifying = False
         self.blink_on = False
+        self.silenced = False
 
     def title_text(self):
         path = shorten_path(self.cwd)
